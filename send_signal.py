@@ -1,112 +1,198 @@
-import subprocess
-import socket
-import time
-import math
-import threading
+#include <platform.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <FreeRTOS.h>
+#include <task.h>
+#include <queue.h>
+#include <uart.h>
 
-def authenticate(username, password):
-    """Authenticate to IoT-LAB using the command line tool."""
-    try:
-        command = ['iotlab-auth', '-u', username, '-p', password]
-        result = subprocess.run(command, text=True, capture_output=True)
-        
-        if result.returncode == 0:
-            print("Authentication successful")
-            return True
-        else:
-            print("Authentication failed:", result.stderr)
-            return False
-    except Exception as e:
-        print("An error occurred while trying to authenticate:", str(e))
-        return False
+// Dummy functions to resolve linker errors
+void _init(void) {}
+void _fini(void) {}
 
-def send_signal(sock, start_time, duration, frequency, amplitude):
-    """Send a sinusoidal signal periodically to the IoT device."""
-    try:
-        current_time = start_time
-        end_time = start_time + duration
-        
-        while current_time < end_time:
-            current_time = time.time()
-            t = current_time - start_time  # Time variable t
-            # Calculate the signal value
-            signal = sum(a * math.sin(2 * math.pi * f * t) for a, f in zip(amplitude, frequency))
-            message = f'{signal}\n'
-            sock.sendall(message.encode())
-            print(f"Signal sent: {signal}")
-            time.sleep(0.1)  # Adjust the sleep time as needed
-    except Exception as e:
-        print("Failed to send signal:", str(e))
+#define INITIAL_SAMPLE_SIZE 100 // Initial sample size
+#define INITIAL_SAMPLE_RATE 1000 // Initial sample rate in Hz
 
-def receive_response(sock):
-    """Receive responses from the IoT device."""
-    try:
-        while True:
-            response = sock.recv(1024)
-            if response:
-                print("Received response from device:", response.decode())
-            else:
-                print("No response received from device.")
-                break
-    except Exception as e:
-        print("Failed to receive response:", str(e))
+typedef struct {
+    double real;
+    double imag;
+} Complex;
 
-def send_signal_to_device(ip, port, duration, frequency, amplitude):
-    """Send a sinusoidal signal periodically to the IoT device and read responses."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.connect((ip, port))
-        start_time = time.time()
-        
-        # Create threads for sending signals and receiving responses
-        send_thread = threading.Thread(target=send_signal, args=(sock, start_time, duration, frequency, amplitude))
-        receive_thread = threading.Thread(target=receive_response, args=(sock,))
-        
-        # Start threads
-        send_thread.start()
-        receive_thread.start()
-        
-        # Wait for threads to complete
-        send_thread.join()
-        receive_thread.join()
-        
-    except Exception as e:
-        print("Failed to send signal:", str(e))
-    finally:
-        sock.close()
+// Buffer for storing samples
+static Complex *sample_buffer;
+static unsigned int sample_index = 0;
+static int sample_size = INITIAL_SAMPLE_SIZE;
+static int sample_rate = INITIAL_SAMPLE_RATE;
 
-# Securely managing credentials
-username = 'pferreir'
-password = 'Peter5h3!'
+// Complex number operations
+Complex complex_add(Complex a, Complex b) {
+    Complex result;
+    result.real = a.real + b.real;
+    result.imag = a.imag + b.imag;
+    return result;
+}
 
-# Authenticate first
-if authenticate(username, password):
-    # Device connection details
-    device_ip = 'm3-95'  # Device IP address or hostname
-    port = 20000          # Port number
-    duration = 100          # Duration to send the signal in seconds
-    frequency = [3, 5]    # Frequencies for each component of the signal (3 Hz and 5 Hz)
-    amplitude = [2, 4]    # Amplitudes for each component of the signal (2 and 4)
+Complex complex_sub(Complex a, Complex b) {
+    Complex result;
+    result.real = a.real - b.real;
+    result.imag = a.imag - b.imag;
+    return result;
+}
+
+Complex complex_mul(Complex a, Complex b) {
+    Complex result;
+    result.real = a.real * b.real - a.imag * b.imag;
+    result.imag = a.real * b.imag + a.imag * b.real;
+    return result;
+}
+
+Complex complex_from_polar(double magnitude, double phase) {
+    Complex result;
+    result.real = magnitude * cos(phase);
+    result.imag = magnitude * sin(phase);
+    return result;
+}
+
+// FFT implementation
+void fft(Complex *x, int n) {
+    if (n <= 1) return;
+
+    // Divide
+    Complex even[n/2];
+    Complex odd[n/2];
+    int i;
+    for (i = 0; i < n/2; i++) {
+        even[i] = x[i*2];
+        odd[i] = x[i*2 + 1];
+    }
+
+    // Conquer
+    fft(even, n/2);
+    fft(odd, n/2);
+
+    // Combine
+    int k;
+    for (k = 0; k < n/2; k++) {
+        Complex t = complex_mul(complex_from_polar(1.0, -2 * M_PI * k / n), odd[k]);
+        x[k] = complex_add(even[k], t);
+        x[k + n/2] = complex_sub(even[k], t);
+    }
+}
+
+// Function to perform FFT and find max frequency
+static void compute_fft() {
+    fft(sample_buffer, sample_size);
+
+    // Find the index with the maximum magnitude
+    float max_magnitude = 0;
+    int max_index = 0;
+    int i;
+    for (i = 0; i < sample_size / 2; i++) {
+        float magnitude = sqrt(sample_buffer[i].real * sample_buffer[i].real + sample_buffer[i].imag * sample_buffer[i].imag);
+        if (magnitude > max_magnitude) {
+            max_magnitude = magnitude;
+            max_index = i;
+        }
+    }
+
+    // Calculate the corresponding frequency
+    float max_frequency = (float)max_index * sample_rate / sample_size;
+    printf("Max frequency: %f Hz\n", max_frequency);
+
+    // Adjust the sample rate and size based on the detected frequency
+    sample_rate = max_frequency * 2;
+    sample_size = (sample_rate / INITIAL_SAMPLE_RATE) * INITIAL_SAMPLE_SIZE;
+    if (sample_size < 20) {
+        sample_size = 20; // Minimum sample size
+    }
+    sample_buffer = (Complex *)realloc(sample_buffer, sample_size * sizeof(Complex));
+    if (sample_buffer == NULL) {
+        printf("Failed to reallocate memory for sample buffer\n");
+        exit(-1);
+    }
+    printf("Adjusted sample rate: %d Hz, sample size: %d\n", sample_rate, sample_size);
+
+}
+
+// Command interpreter
+static void interpret_line(char *line) {
+    // Convert the input line to a float and store it in the sample buffer
+    float value = atof(line);
+    if (sample_index < sample_size) {
+        sample_buffer[sample_index].real = value;
+        sample_buffer[sample_index].imag = 0;
+        sample_index++;
+    }
+
+    // If the buffer is full, compute the FFT
+    if (sample_index == sample_size) {
+        compute_fft();
+        sample_index = 0; // Reset the buffer index for new samples
+    }
+}
+
+// UART receive handler
+static xQueueHandle char_queue;
+static void char_rx(void *arg, uint8_t c) {
+    xQueueSendFromISR(char_queue, &c, 0);
+}
+
+// Buffer handling
+static unsigned int buff_index = 0;
+static char buff[1024];
+static void flush_buff() {
+    if (buff_index == sizeof(buff)) return; // Prevent buffer overflow
+
+    buff[buff_index] = '\0';
+    interpret_line(buff);
+    buff_index = 0;
+}
+
+static void read_line() {
+    char value;
+    while (xQueueReceive(char_queue, &value, 0) == pdTRUE) {
+        switch (value) {
+        case '\r':
+            break; // Ignore and handle only \n
+        case '\n':
+            flush_buff();
+            break;
+        default:
+            if (buff_index < sizeof(buff))
+                buff[buff_index++] = value;
+            else
+                flush_buff();
+        }
+    }
+}
+
+// RTOS task
+static void app_task(void *param) {
+    printf("FFT serial server started.\n");
+    while (1) read_line();
+}
+
+// Main function
+int main() {
+    platform_init();
+    char_queue = xQueueCreate(8, sizeof(char));
+    uart_set_rx_handler(uart_print, char_rx, NULL);
     
-    # Send the sinusoidal signal to the device and receive responses
-    send_signal_to_device(device_ip, port, duration, frequency, amplitude)
-else:
-    print("Cannot proceed without authentication.")
+    // Allocate memory for the sample buffer
+    sample_buffer = (Complex *)malloc(sample_size * sizeof(Complex));
+    if (sample_buffer == NULL) {
+        printf("Failed to allocate memory for sample buffer\n");
+        return -1;
+    }
 
-# Securely managing credentials
-username = 'pferreir'
-password = 'Peter5h3!'
+    // Create the app task with increased stack size
+    xTaskCreate(app_task, (const signed char * const)"app", 1024, NULL, 1, NULL);
 
-# Authenticate first
-if authenticate(username, password):
-    # Device connection details
-    device_ip = 'm3-102'  # Device IP address or hostname
-    port = 20000          # Port number
-    duration = 8         # Duration to send the signal in seconds
-    frequency = [3, 5]    # Frequencies for each component of the signal
-    amplitude = [2, 4]    # Amplitudes for each component of the signal
-    
-    # Send the sinusoidal signal to the device and receive responses
-    send_signal_to_device(device_ip, port, duration, frequency, amplitude)
-else:
-    print("Cannot proceed without authentication.")
+    platform_run();
+
+    // Free memory for the sample buffer
+    free(sample_buffer);
+    return 0;
+}
