@@ -14,6 +14,7 @@ void _fini(void) {}
 
 #define INITIAL_SAMPLE_SIZE 100 // Initial sample size
 #define INITIAL_SAMPLE_RATE 1000 // Initial sample rate in Hz
+#define WINDOW_SIZE 50 // Define the window size for the aggregate function
 
 typedef struct {
     double real;
@@ -102,18 +103,32 @@ static void compute_fft() {
     printf("Max frequency: %f Hz\n", max_frequency);
 
     // Adjust the sample rate and size based on the detected frequency
-    sample_rate = max_frequency * 2;
-    sample_size = (sample_rate / INITIAL_SAMPLE_RATE) * INITIAL_SAMPLE_SIZE;
-    if (sample_size < 20) {
-        sample_size = 20; // Minimum sample size
+    if (max_frequency < sample_rate / 4) {
+        sample_rate = max_frequency * 4;
+        sample_size = (sample_rate / INITIAL_SAMPLE_RATE) * INITIAL_SAMPLE_SIZE;
+        if (sample_size < 20) {
+            sample_size = 20; // Minimum sample size
+        }
+        sample_buffer = (Complex *)realloc(sample_buffer, sample_size * sizeof(Complex));
+        if (sample_buffer == NULL) {
+            printf("Failed to reallocate memory for sample buffer\n");
+            exit(-1);
+        }
+        printf("Adjusted sample rate: %d Hz, sample size: %d\n", sample_rate, sample_size);
     }
-    sample_buffer = (Complex *)realloc(sample_buffer, sample_size * sizeof(Complex));
-    if (sample_buffer == NULL) {
-        printf("Failed to reallocate memory for sample buffer\n");
-        exit(-1);
-    }
-    printf("Adjusted sample rate: %d Hz, sample size: %d\n", sample_rate, sample_size);
+}
 
+// Function to compute the moving average over a window
+static void compute_moving_average() {
+    if (sample_index < WINDOW_SIZE) return; // Not enough samples yet
+
+    double sum = 0;
+    int i;
+    for (i = sample_index - WINDOW_SIZE; i < sample_index; i++) {
+        sum += sample_buffer[i].real;
+    }
+    double moving_average = sum / WINDOW_SIZE;
+    printf("Moving average over the last %d samples: %f\n", WINDOW_SIZE, moving_average);
 }
 
 // Command interpreter
@@ -130,6 +145,9 @@ static void interpret_line(char *line) {
     if (sample_index == sample_size) {
         compute_fft();
         sample_index = 0; // Reset the buffer index for new samples
+    } else {
+        // Compute the moving average for the current window
+        compute_moving_average();
     }
 }
 
