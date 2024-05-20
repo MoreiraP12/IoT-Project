@@ -486,27 +486,125 @@ These improvements make the adaptive sampling strategy a superior choice for ene
 ### Signal 1: Low-Frequency Dominant Signal
 This signal has two sine waves with relatively low frequencies.
 
-\[ S_1(t) = 2 \cdot \sin(2\pi \cdot 3t) + 4 \cdot \sin(2\pi \cdot 5t) \]
+$$S_1(t) = 2 \sin(2\pi \cdot 3t) + 4 \sin(2\pi \cdot 5t)$$
 
 - **Frequency Components**: 3 Hz and 5 Hz
 - **Maximum Frequency**: 5 Hz
-- **Recommended Sampling Frequency**: 10 Hz (based on Nyquist theorem, \( 2 \times 5 \text{ Hz} \))
+- **Recommended Sampling Frequency**: 10 Hz (based on Nyquist theorem)
+
+![Low-Frequency Dominant Signal ](./analysis/img/low.png)
 
 ### Signal 2: High-Frequency Dominant Signal
 This signal has two sine waves with higher frequencies.
 
-\[ S_2(t) = 1 \cdot \sin(2\pi \cdot 15t) + 3 \cdot \sin(2\pi \cdot 20t) \]
+$$S_2(t) = 1 \cdot \sin(2\pi \cdot 15t) + 3 \cdot \sin(2\pi \cdot 20t)$$
 
 - **Frequency Components**: 15 Hz and 20 Hz
 - **Maximum Frequency**: 20 Hz
-- **Recommended Sampling Frequency**: 40 Hz (based on Nyquist theorem, \( 2 \times 20 \text{ Hz} \))
+- **Recommended Sampling Frequency**: 40 Hz
+
+![High-Frequency Dominant Signal ](./analysis/img/high.png)
 
 ### Signal 3: Mixed-Frequency Signal
 This signal combines low, mid, and high-frequency sine waves.
 
-\[ S_3(t) = 0.5 \cdot \sin(2\pi \cdot 2t) + 2 \cdot \sin(2\pi \cdot 10t) + 1.5 \cdot \sin(2\pi \cdot 30t) \]
+$$S_3(t) = 0.5 \cdot \sin(2\pi \cdot 2t) + 2 \cdot \sin(2\pi \cdot 10t) + 1.5 \cdot \sin(2\pi \cdot 30t)$$
 
 - **Frequency Components**: 2 Hz, 10 Hz, and 30 Hz
 - **Maximum Frequency**: 30 Hz
-- **Recommended Sampling Frequency**: 60 Hz (based on Nyquist theorem, \( 2 \times 30 \text{ Hz} \))
+- **Recommended Sampling Frequency**: 60 Hz
+
+![Mixed-Frequency Dominant Signal ](./analysis/img/mixed.png)
+
+### Energy Consumption Analysis
+
+Despite the varying frequency components and recommended sampling rates for each signal, the energy consumption remains relatively consistent across all three signals. Below, we provide a technical analysis to explain this observation.
+
+#### Consistent Energy Consumption Explanation
+
+1. **Baseline Power Consumption**: The ESP32 and similar IoT devices have a baseline power consumption associated with maintaining the system's operational state, including the microcontroller's idle processes, peripheral management, and power regulation. This baseline power usage contributes significantly to the overall energy consumption and remains constant regardless of the signal being processed.
+
+2. **Sampling Overhead**: The process of sampling signals, whether at 10 Hz, 40 Hz, or 60 Hz, involves relatively similar overhead in terms of task switching, buffer management, and interrupt handling. While higher sampling rates theoretically increase the computational load, the difference in processing these rates is minimal due to the efficiency of the underlying FreeRTOS and the optimized handling of sampling tasks.
+
+3. **FFT and Signal Processing Load**: The FFT computation, while dependent on the number of samples, is performed at intervals determined by the buffer size (SAMPLE_SIZE). Given the moderate size of the buffer (16 samples), the FFT load is not significantly different across varying sampling frequencies, leading to similar energy consumption during the FFT processing stages.
+
+4. **Transmission Overhead**: The energy required for transmitting the aggregate values via MQTT is influenced by the frequency of transmissions rather than the sampling rate itself. Since the transmission interval is based on the window size (e.g., 5 seconds) and not directly on the sampling rate, the transmission overhead remains similar across different signals. The secure transmission using TLS does add a constant overhead, but this is independent of the signal frequency components.
+
+### Conclusion
+
+The consistent energy consumption observed across the three different signals can be attributed to the baseline power usage, minimal difference in sampling overhead, optimized FFT processing, and stable transmission overhead. These factors collectively ensure that the energy consumption remains relatively steady, regardless of the signal's frequency components and the adaptive sampling rate.
+
+This analysis highlights the efficiency of the adaptive sampling strategy in maintaining low power consumption while providing accurate signal processing, demonstrating its suitability for a wide range of IoT applications.
+
+Sure! Here is the chapter on how to run the project, including details on generating the signal, setting up the netcat connection, and running the main program:
+
+## Running the Project
+
+This section provides detailed instructions on how to set up and run the project, including signal generation, setting up the netcat connection, and running the main program on IoT-LAB or an ESP32 device.
+
+### Prerequisites
+
+Before running the project, ensure you have the following prerequisites:
+- Python environment for running `send_signal.py`
+- Netcat installed on your system
+- Certificates for AWS IoT (not shared here for security reasons, but available upon request from the instructor)
+
+### Generating the Signal
+
+**Specify the Signal Parameters**
+
+   In the `send_signal.py` script, specify the desired signal parameters, including amplitude and frequency. Modify the `send_signal` function as needed.
+
+   ```python
+   if authenticate(username, password):
+        # Device connection details
+        device_ip = 'm3-101'  # Device IP address or hostname
+        port = 20000         # Port number
+        duration = 20        # Duration to send the signal in seconds
+        frequency = [6, 2]    # Frequencies for each component of the signal 
+        amplitude = [1, 3]    # Amplitudes for each component of the signal 
+        
+        # Send the sinusoidal signal to the device and receive responses
+        send_signal_to_device(device_ip, port, duration, frequency, amplitude, mqtt_client)
+    else:
+        print("Cannot proceed without authentication.")
+   ```
+
+ **Run the Signal Generation Script**
+
+   Execute the `send_signal.py` script to start generating and sending the signal:
+
+   ```sh
+   python3 send_signal.py
+   ```
+
+### Running the Main Program on IoT-LAB
+
+1. **Include the `main.c` File**
+
+   Add the `main.c` file to the IoT-LAB examples directory. Ensure that the file is properly configured to handle the signal processing and communication tasks. Use a typical Makefile for compiling and running the program on IoT-LAB. Here is an example Makefile.
+
+
+### Running on ESP32
+
+If you are running the project on an ESP32 device, you may want to uncomment the relevant sections in the `main.c` file to enable MQTT communication. Ensure that the Wi-Fi and MQTT configurations are correctly set up.
+
+**Uncomment MQTT Code**
+
+   Uncomment the code related to Wi-Fi and MQTT setup in the `main.c` file:
+
+   ```c
+   // Uncomment the following lines to enable MQTT on ESP32
+
+   // xSemaphoreWifiConnected = xSemaphoreCreateBinary();
+   // wifi_connection();
+   
+   // // MQTT
+   // xSemaphoreTake(xSemaphoreWifiConnected, portMAX_DELAY);
+   // mqtt_initialize();
+   ```
+
+**Include AWS IoT Certificates**
+
+   Ensure that the certificates for AWS IoT are correctly referenced in the code. Due to security reasons, these certificates are not shared here, but they can be provided to the instructor if needed.
 
