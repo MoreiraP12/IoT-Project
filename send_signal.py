@@ -36,7 +36,7 @@ def send_signal(sock, start_time, duration, frequency, amplitude):
             current_time = time.time()
             t = current_time - start_time  # Time variable t
             # Calculate the signal value
-            signal = 2*np.sin(2*np.pi*3*t)+4*np.sin(2*np.pi*5*t)
+            signal = 2*np.sin(2*np.pi*frequency[0]*t)+4*np.sin(2*np.pi*frequency[1]*t)
             message = f'{signal}\n'
             sock.sendall(message.encode())
             # print(f"Signal sent: {signal}")
@@ -144,11 +144,11 @@ print("MQTT client network loop started.")
 # Authenticate first
 if authenticate(username, password):
     # Device connection details
-    device_ip = 'm3-101'  # Device IP address or hostname
+    device_ip = 'm3-102'  # Device IP address or hostname
     port = 20000         # Port number
-    duration = 100        # Duration to send the signal in seconds
-    frequency = [20, 50]    # Frequencies for each component of the signal (30 Hz and 50 Hz)
-    amplitude = [2, 4]    # Amplitudes for each component of the signal (2 and 4)
+    duration = 20        # Duration to send the signal in seconds
+    frequency = [10, 15]    # Frequencies for each component of the signal 
+    amplitude = [1, 5]    # Amplitudes for each component of the signal 
     
     # Send the sinusoidal signal to the device and receive responses
     send_signal_to_device(device_ip, port, duration, frequency, amplitude, mqtt_client)

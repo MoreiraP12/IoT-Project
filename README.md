@@ -446,3 +446,67 @@ static void mqtt_initialize(void)
     esp_mqtt_client_start(client);                                                      
 }
 ```
+
+## Evaluation of Energy Savings and Data Transmission Efficiency
+
+The primary advantage of adaptive sampling is the potential reduction in energy consumption. By adjusting the sampling frequency based on the dominant frequency component of the signal, we can significantly reduce the power usage of the IoT device. 
+
+#### Current Consumption Analysis
+
+We measured the current consumption of the device under both the original oversampled frequency and the adaptive sampling frequency. The results are illustrated in the following figures:
+
+**Original Oversampled Frequency:**
+
+![Original Oversampled Frequency Current Consumption](./analysis/img/fixed.png)
+
+- **Observation:** The current consumption remains consistently above 0.0300 A. This indicates that the device is consuming a relatively high amount of power due to the constant high sampling rate. This higher sample brings no performance advantage since the signal frequency is more than likely much lower than the frequency used for sampling.
+
+**Adaptive Sampling Frequency:**
+
+![Adaptive Sampling Frequency Current Consumption](./analysis/img/adaptable.png)
+
+- **Observation:** The current consumption is consistently below 0.0300 A. The adaptive sampling strategy dynamically adjusts the sampling rate based on the FFT analysis of the signal. By sampling at a rate that is twice the dominant frequency, we adhere to the Nyquist criterion while minimizing unnecessary power consumption. The significant reduction in current consumption demonstrates that the adaptive strategy is more energy-efficient compared to the fixed high sampling rate of the original method.
+
+### Data Transmission Volume
+
+Adaptive sampling not only reduces power consumption but also decreases the volume of data transmitted over the network. This is because the lower sampling rate results in fewer samples being generated over the same period, thus reducing the frequency of data transmissions. Since fewer samples are generated and transmitted, the network load is reduced, leading to lower bit rates. This reduction in communication overhead not only conserves bandwidth but also reduces the energy required for data transmission, further contributing to overall energy savings.
+
+### Conclusion
+
+The evaluation clearly shows that the adaptive sampling frequency offers substantial benefits over the original oversampled frequency. The key advantages include:
+
+- **Reduced Energy Consumption:** The adaptive method keeps the current consumption consistently below 0.0300 A, compared to the higher and constant consumption of the oversampled method.
+- **Lower Data Transmission Volume:** The adaptive sampling strategy results in less frequent data transmissions, lowering the bit rate and reducing the network load.
+
+These improvements make the adaptive sampling strategy a superior choice for energy-efficient and bandwidth-efficient IoT applications.
+
+
+## Three Different Signals Analysis
+
+### Signal 1: Low-Frequency Dominant Signal
+This signal has two sine waves with relatively low frequencies.
+
+\[ S_1(t) = 2 \cdot \sin(2\pi \cdot 3t) + 4 \cdot \sin(2\pi \cdot 5t) \]
+
+- **Frequency Components**: 3 Hz and 5 Hz
+- **Maximum Frequency**: 5 Hz
+- **Recommended Sampling Frequency**: 10 Hz (based on Nyquist theorem, \( 2 \times 5 \text{ Hz} \))
+
+### Signal 2: High-Frequency Dominant Signal
+This signal has two sine waves with higher frequencies.
+
+\[ S_2(t) = 1 \cdot \sin(2\pi \cdot 15t) + 3 \cdot \sin(2\pi \cdot 20t) \]
+
+- **Frequency Components**: 15 Hz and 20 Hz
+- **Maximum Frequency**: 20 Hz
+- **Recommended Sampling Frequency**: 40 Hz (based on Nyquist theorem, \( 2 \times 20 \text{ Hz} \))
+
+### Signal 3: Mixed-Frequency Signal
+This signal combines low, mid, and high-frequency sine waves.
+
+\[ S_3(t) = 0.5 \cdot \sin(2\pi \cdot 2t) + 2 \cdot \sin(2\pi \cdot 10t) + 1.5 \cdot \sin(2\pi \cdot 30t) \]
+
+- **Frequency Components**: 2 Hz, 10 Hz, and 30 Hz
+- **Maximum Frequency**: 30 Hz
+- **Recommended Sampling Frequency**: 60 Hz (based on Nyquist theorem, \( 2 \times 30 \text{ Hz} \))
+
