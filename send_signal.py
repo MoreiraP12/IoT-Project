@@ -147,7 +147,7 @@ if authenticate(username, password):
     device_ip = 'm3-101'  # Device IP address or hostname
     port = 20000         # Port number
     duration = 20        # Duration to send the signal in seconds
-    frequency = [15, 20]    # Frequencies for each component of the signal 
+    frequency = [6, 3]    # Frequencies for each component of the signal 
     amplitude = [1, 3]    # Amplitudes for each component of the signal 
     
     # Send the sinusoidal signal to the device and receive responses
